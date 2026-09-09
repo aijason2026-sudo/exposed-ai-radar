@@ -150,7 +150,7 @@ def build_splash_html(hosts_df, height: int = 640) -> str:
       }}
     </style>
     <div id="splashGlobe" style="width:100%; height:{height}px; position:relative; overflow:hidden;">
-      <div id="splashGlobeCanvas" style="position:absolute; inset:0; z-index:1;"></div>
+      <div id="splashGlobeCanvas" style="position:absolute; top:210px; left:0; right:0; bottom:0; z-index:1;"></div>
       <div class="radarSweep"></div>
       <div style="position:absolute; top:8%; left:0; right:0; text-align:center; z-index:10; pointer-events:none;">
         <div class="ghostgrid-title" data-text="GHOSTGRID">GHOSTGRID</div>
@@ -196,7 +196,7 @@ def build_splash_html(hosts_df, height: int = 640) -> str:
         .ringPropagationSpeed(2.5)
         .ringRepeatPeriod(900)
         .width(document.getElementById('splashGlobeCanvas').clientWidth)
-        .height({height});
+        .height(document.getElementById('splashGlobeCanvas').clientHeight);
 
       world.controls().enableZoom = false;
       world.controls().autoRotate = true;
