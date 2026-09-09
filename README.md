@@ -80,6 +80,27 @@ mentioning the product name, unrelated directory sites) rather than actual
 instances. Check `PRODUCTS[i]["notes"]` for the reasoning behind each
 current query before changing it.
 
+**Free pre-check with `api.count()`:** confirmed empirically that Shodan's
+count endpoint (`api.count(query)` in the Python library) costs **0 query
+credits**, unlike `api.search()` which costs 1 credit per page once any
+filter is used — even page 1. Worked fine with the account sitting at 0
+remaining credits. Use it to sanity-check a candidate query's magnitude
+(implausibly huge = generic/noisy, like the rejected `http.title:"Ray
+Dashboard"` query below at 189,555 results) before spending a real credit
+to pull samples. Magnitude alone doesn't prove accuracy though — you still
+need real samples to confirm the matches are genuinely the target product,
+which costs 1 credit per page.
+
+**`candidate_products.py`** holds products that were count-checked and look
+plausible but haven't been sample-verified yet (Milvus, Weaviate, Qdrant,
+MLflow, Kubeflow, BentoML, ChromaDB — added 2026-09-09), plus a record of
+what was rejected at the count stage and why. `verify_candidate.py "<name>"`
+pulls one real page (1 credit) so the samples can be eyeballed before
+promoting an entry into `products.py`'s live `PRODUCTS` list. Milvus is the
+strongest candidate — it hit Shodan's own dedicated product fingerprint
+(`product:"Milvus"`, same trust tier as the existing Ollama entry) rather
+than a generic title/html match.
+
 ## Data model
 
 SQLite (`radar.db`, gitignored):
@@ -210,6 +231,24 @@ only**, via LeakIX's dedicated `ComfyUIPlugin` fingerprint module
 (`+plugin:ComfyUIPlugin`), not generic text search. Ollama/Open WebUI/vLLM
 only match LeakIX's generic `HttpPlugin` there — no better than what
 Shodan already gives us, so not worth the redundant integration.
+
+**ZoomEye re-confirmed dead-end (2026-09-09):** a `ZOOMEYE_API_KEY` was
+already sitting in `.env` unused. Verified it's a valid key (`userinfo`
+shows a real Free-plan account), but `search` returns HTTP 402
+`credits_insufficient` — the account's `zoomeye_points` (the balance
+search actually spends) is 0, even though `userinfo` also shows a
+`points: 3000` field that apparently isn't the same currency. Whether
+that's a one-time signup bonus already spent, a separate resource, or a
+Free-plan quirk wasn't resolved via the API alone — would need checking
+the account dashboard at zoomeye.ai directly, or a paid top-up, before
+`ZOOMEYE_API_KEY` is usable for anything. Endpoints for reference if
+revisited: `POST https://api.zoomeye.ai/v2/search` /
+`https://api.zoomeye.ai/v2/userinfo`, `API-KEY` header, JSON body with a
+base64-encoded `qbase64` dork (modern syntax uses `=`, e.g.
+`app="Ollama"`, not Shodan's `:`). Don't add `zoomeyeai` as a project
+dependency if this does get unblocked — its pinned `requests==2.26.0`
+conflicts with Streamlit's `requests>=2.27`; call the REST API directly
+with plain `requests` instead, same pattern as `censys_lookup.py`.
 
 Stored with `source='leakix'` alongside Shodan's `source='shodan'` rows for
 the same product — the `(ip, port, product, source)` primary key lets both
