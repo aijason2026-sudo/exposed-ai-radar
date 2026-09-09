@@ -25,6 +25,15 @@ uv run collector.py --dry-run
 # Collect a real snapshot (costs 1 query credit per product, ~4/run)
 uv run collector.py
 
+# Spend spare Shodan query credits on deeper coverage for specific products,
+# without disturbing the existing snapshot (upsert-only, no
+# replace_product_snapshot). Check remaining credits first — this hard-exits
+# if you request more than you have. Costs (baseline pages + extra_pages)
+# credits per targeted product, not just extra_pages: Shodan's pagination is
+# a server-side cursor that must be walked sequentially from page 1, so
+# jumping straight to page 2+ fails with "Search cursor timed out."
+uv run collector.py --supplement --only "Ollama,Open WebUI" --extra-pages 8
+
 # Enrich High/Critical risk-tier hosts with an abuse-contact email (RDAP,
 # free, no API key). Separate from collector.py — slower (one HTTP request
 # per host) and only relevant to the tier where disclosure actually matters.
@@ -130,12 +139,37 @@ on the dev plan tier. Trust `total_reported` for trend direction instead.
 ## Multi-page sampling for small-total products
 
 `products.py` entries can set `"pages": N` to fetch more than one Shodan
-results page in a single run. Only worth it for products with a small
-enough total that multiple pages meaningfully approach full population
-coverage — vLLM (~448 total) uses 5 pages to capture ~99% of it for an
-extra ~4 query credits/run. Not applied to Ollama/Open WebUI/ComfyUI
-(tens/hundreds of thousands of total results) since even many pages would
-barely move the needle on coverage there.
+results page in a single run. Only worth it as a *standing default* for
+products with a small enough total that multiple pages meaningfully approach
+full population coverage — vLLM (~448 total) uses 5 pages to capture ~99% of
+it for an extra ~4 query credits/run. Not applied as a standing default to
+Ollama/Open WebUI/ComfyUI (tens/hundreds of thousands of total results)
+because true full-population coverage there is a query-credit economics
+problem, not a code problem: at 1 credit per 100 results, ComfyUI's ~191k
+total alone would cost ~1,916 credits for one complete pull — versus the dev
+tier's 100/month. A paid plan removes the ceiling (Freelancer, $69/mo, gives
+10,000 credits/month — enough for a full pull of all four products with
+room to spare); on the free tier, see `--supplement` below instead.
+
+### Spending idle credits: `collector.py --supplement`
+
+The free-tier monthly budget often isn't fully used by the standing weekly
+job (baseline cost is only ~8 credits/run). `collector.py --supplement
+--only "<products>" --extra-pages N` spends leftover credits pushing
+specific products deeper, merging into the existing snapshot via upsert
+(never wipes it, unlike the normal run). **Important:** Shodan's pagination
+is a server-side cursor that must be walked sequentially from page 1 —
+requesting page 2+ cold fails with "Search cursor timed out. Restart the
+search query from page 1" (confirmed empirically). So depth N still costs N
+credits total, not just the pages beyond the existing baseline; there's no
+way to cheaply "top up" without re-paying for page 1.
+
+Don't bump the standing `"pages"` default in `products.py` for the
+big-total products to chase this instead — `check_credits()` hard-exits the
+*entire* run (including vLLM, which currently gets a reliable ~99% pull) if
+the account is short, so a permanently higher default risks silently
+breaking the automated weekly job for every product until the monthly
+reset. `--supplement` is a manual, opt-in spend instead.
 
 ## Premium UI pieces
 
@@ -199,3 +233,12 @@ LeakIX-sourced host.
   references it directly.
 - Consider deduplicating hosts found by both Shodan and LeakIX (same IP)
   when computing dashboard/report totals, rather than counting twice.
+- Shodan query credits are 0 as of 2026-09-09 (spent via `--supplement` on
+  Ollama/Open WebUI, taking each from 100 to ~980-990 fetched hosts) and
+  reset monthly at the start of the calendar month — next reset 2026-10-01.
+  Until then the standing weekly `collector.py` call in `run_weekly.sh` will
+  fail with "Not enough query credits" (harmless — the rest of the weekly
+  pipeline doesn't depend on Shodan and keeps running; see run_weekly.sh's
+  `set -uo pipefail`, not `-e`). After the reset, consider a recurring
+  `--supplement` spend as part of the monthly routine rather than letting
+  credits sit unused, if a Freelancer-plan upgrade isn't in the cards.
