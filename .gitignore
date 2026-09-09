@@ -1,0 +1,9 @@
+.env
+*.db
+__pycache__/
+*.pyc
+.venv/
+logs/
+reports/
+epss_cache.json
+kev_cache.json
