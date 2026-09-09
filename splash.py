@@ -43,6 +43,13 @@ def build_splash_html(hosts_df, height: int = 640) -> str:
                 "endLat": coords[i + 1][0], "endLng": coords[i + 1][1],
             })
 
+    # Pulsing radar-ping rings on flagged hosts, same effect as globe_view.py.
+    rings = [
+        {"lat": p["lat"], "lng": p["lng"], "color": p["color"]}
+        for p in points
+        if p["size"] >= 0.32
+    ]
+
     total = len(hosts_df)
     countries = int(hosts_df["country"].nunique())
     critical = int((hosts_df["risk_tier"] == "Critical").sum())
@@ -50,23 +57,109 @@ def build_splash_html(hosts_df, height: int = 640) -> str:
 
     points_json = json.dumps(points)
     arcs_json = json.dumps(arcs)
+    rings_json = json.dumps(rings)
 
     return f"""
-    <div id="splashGlobe" style="width:100%; height:{height}px; position:relative;">
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap');
+
+      @keyframes titleFlicker {{
+        0%   {{ opacity: 0; }}
+        6%   {{ opacity: 1; }}
+        11%  {{ opacity: 0.15; }}
+        16%  {{ opacity: 1; }}
+        22%  {{ opacity: 0.25; }}
+        28%  {{ opacity: 1; }}
+        100% {{ opacity: 1; }}
+      }}
+      @keyframes glowPulse {{
+        0%, 100% {{ text-shadow: 0 0 30px #00D9C0, 0 0 60px #00D9C0aa; }}
+        50%      {{ text-shadow: 0 0 44px #00D9C0, 0 0 90px #00D9C0dd; }}
+      }}
+      @keyframes gradientShift {{
+        to {{ background-position: 200% center; }}
+      }}
+      @keyframes glitchSliceA {{
+        0%, 92%, 100% {{ transform: translate(0, 0); opacity: 0; }}
+        93% {{ transform: translate(-3px, -1px); opacity: 0.85; }}
+        95% {{ transform: translate(3px, 1px); opacity: 0.85; }}
+        97% {{ transform: translate(-2px, 0); opacity: 0.6; }}
+        98% {{ opacity: 0; }}
+      }}
+      @keyframes glitchSliceB {{
+        0%, 92%, 100% {{ transform: translate(0, 0); opacity: 0; }}
+        93% {{ transform: translate(3px, 1px); opacity: 0.85; }}
+        95% {{ transform: translate(-3px, -1px); opacity: 0.85; }}
+        97% {{ transform: translate(2px, 0); opacity: 0.6; }}
+        98% {{ opacity: 0; }}
+      }}
+      @keyframes fadeUp {{
+        from {{ opacity: 0; transform: translateY(14px); }}
+        to   {{ opacity: 1; transform: translateY(0); }}
+      }}
+      @keyframes sweepSpin {{
+        from {{ transform: rotate(0deg); }}
+        to   {{ transform: rotate(360deg); }}
+      }}
+      #splashGlobe .ghostgrid-title {{
+        position: relative;
+        display: inline-block;
+        font-family: 'Orbitron', -apple-system, sans-serif;
+        font-size: 54px; font-weight: 900;
+        letter-spacing: 0.14em;
+        background: linear-gradient(90deg, #00D9C0, #7CF2FF 45%, #00D9C0 90%);
+        background-size: 200% auto;
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+        animation: titleFlicker 1.3s ease-out forwards,
+                   gradientShift 5s linear infinite,
+                   glowPulse 3s ease-in-out 1.3s infinite;
+      }}
+      #splashGlobe .ghostgrid-title::before,
+      #splashGlobe .ghostgrid-title::after {{
+        content: attr(data-text);
+        position: absolute; top: 0; left: 0; width: 100%;
+        background: none; -webkit-text-fill-color: initial;
+      }}
+      #splashGlobe .ghostgrid-title::before {{
+        color: #FF2ED0;
+        clip-path: inset(0 0 55% 0);
+        animation: glitchSliceA 4.5s ease-in-out infinite;
+      }}
+      #splashGlobe .ghostgrid-title::after {{
+        color: #00E5FF;
+        clip-path: inset(55% 0 0 0);
+        animation: glitchSliceB 4.5s ease-in-out infinite;
+      }}
+      #splashGlobe .ghostgrid-subtitle {{
+        font-family: -apple-system,'Segoe UI',sans-serif; font-size: 15px; color: #9AA4B2;
+        letter-spacing: 0.04em; margin-top: 6px; opacity: 0;
+        animation: fadeUp 0.8s ease-out 1.4s forwards;
+      }}
+      #splashGlobe .ghostgrid-stats {{
+        font-family: -apple-system,'Segoe UI',sans-serif; font-size: 13px; color: #6B7684;
+        margin-top: 14px; opacity: 0;
+        animation: fadeUp 0.8s ease-out 1.7s forwards;
+      }}
+      #splashGlobe .radarSweep {{
+        position: absolute; inset: 0; z-index: 5; pointer-events: none;
+        background: conic-gradient(from 0deg, rgba(0,217,192,0) 0deg,
+                    rgba(0,217,192,0.20) 6deg, rgba(0,217,192,0) 34deg);
+        mix-blend-mode: screen;
+        animation: sweepSpin 4.5s linear infinite;
+      }}
+    </style>
+    <div id="splashGlobe" style="width:100%; height:{height}px; position:relative; overflow:hidden;">
+      <div id="splashGlobeCanvas" style="position:absolute; inset:0; z-index:1;"></div>
+      <div class="radarSweep"></div>
       <div style="position:absolute; top:8%; left:0; right:0; text-align:center; z-index:10; pointer-events:none;">
-        <div style="font-family:-apple-system,'Segoe UI',sans-serif; font-size:56px; font-weight:800;
-                    letter-spacing:0.08em; color:#F2F4F8; text-shadow:0 0 30px #00D9C0, 0 0 60px #00D9C0aa;">
-          GHOSTGRID
-        </div>
-        <div style="font-family:-apple-system,'Segoe UI',sans-serif; font-size:15px; color:#9AA4B2;
-                    letter-spacing:0.04em; margin-top:6px;">
-          Passive reconnaissance for exposed AI infrastructure
-        </div>
-        <div style="font-family:-apple-system,'Segoe UI',sans-serif; font-size:13px; color:#6B7684;
-                    margin-top:14px;">
-          {total:,} hosts tracked &nbsp;·&nbsp; {countries} countries &nbsp;·&nbsp;
-          <span style="color:#FF3B3B;">{critical} critical</span> &nbsp;·&nbsp;
-          <span style="color:#E07B39;">{high} high</span>
+        <div class="ghostgrid-title" data-text="GHOSTGRID">GHOSTGRID</div>
+        <div class="ghostgrid-subtitle">Passive reconnaissance for exposed AI infrastructure</div>
+        <div class="ghostgrid-stats">
+          <span id="statTotal">0</span> hosts tracked &nbsp;·&nbsp;
+          <span id="statCountries">0</span> countries &nbsp;·&nbsp;
+          <span style="color:#FF3B3B;"><span id="statCritical">0</span> critical</span> &nbsp;·&nbsp;
+          <span style="color:#E07B39;"><span id="statHigh">0</span> high</span>
         </div>
       </div>
     </div>
@@ -74,9 +167,10 @@ def build_splash_html(hosts_df, height: int = 640) -> str:
     <script>
       const pointsData = {points_json};
       const arcsData = {arcs_json};
+      const ringsData = {rings_json};
 
       const world = Globe()
-        (document.getElementById('splashGlobe'))
+        (document.getElementById('splashGlobeCanvas'))
         .backgroundColor('rgba(0,0,0,0)')
         .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
         .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
@@ -94,12 +188,52 @@ def build_splash_html(hosts_df, height: int = 640) -> str:
         .arcDashGap(0.2)
         .arcDashAnimateTime(2000)
         .arcStroke(0.5)
-        .width(document.getElementById('splashGlobe').clientWidth)
+        .ringsData(ringsData)
+        .ringLat('lat')
+        .ringLng('lng')
+        .ringColor(() => t => `rgba(255,59,59,${{1 - t}})`)
+        .ringMaxRadius(3.5)
+        .ringPropagationSpeed(2.5)
+        .ringRepeatPeriod(900)
+        .width(document.getElementById('splashGlobeCanvas').clientWidth)
         .height({height});
 
-      world.controls().autoRotate = true;
-      world.controls().autoRotateSpeed = 1.4;
       world.controls().enableZoom = false;
-      world.pointOfView({{ lat: 15, lng: 20, altitude: 2.0 }});
+      world.controls().autoRotate = true;
+
+      // Dramatic fast spin-up on entrance, decelerating to a steady drift.
+      let spinSpeed = 7;
+      world.controls().autoRotateSpeed = spinSpeed;
+      const rampDown = setInterval(() => {{
+        spinSpeed *= 0.90;
+        if (spinSpeed <= 1.4) {{
+          spinSpeed = 1.4;
+          clearInterval(rampDown);
+        }}
+        world.controls().autoRotateSpeed = spinSpeed;
+      }}, 100);
+
+      world.pointOfView({{ lat: 15, lng: 20, altitude: 2.6 }});
+      // Ease the initial camera pull-in to altitude 2.0 over the first ~1.5s.
+      setTimeout(() => world.pointOfView({{ lat: 15, lng: 20, altitude: 2.0 }}, 1500), 50);
+
+      // Count the header stats up from zero once the fade-in has started.
+      function animateCount(id, target, duration) {{
+        const el = document.getElementById(id);
+        const start = performance.now();
+        function tick(now) {{
+          const progress = Math.min((now - start) / duration, 1);
+          const eased = 1 - Math.pow(1 - progress, 3);
+          el.textContent = Math.round(eased * target).toLocaleString();
+          if (progress < 1) requestAnimationFrame(tick);
+        }}
+        requestAnimationFrame(tick);
+      }}
+      setTimeout(() => {{
+        animateCount('statTotal', {total}, 1400);
+        animateCount('statCountries', {countries}, 1000);
+        animateCount('statCritical', {critical}, 1200);
+        animateCount('statHigh', {high}, 1200);
+      }}, 1700);
     </script>
     """
