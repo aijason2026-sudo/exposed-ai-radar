@@ -102,6 +102,8 @@ kpi_stats = [
     {"label": "Countries", "value": int(hosts["country"].nunique()), "accent": "#5B8DEF", "icon": "🗺️"},
     {"label": "KEV-Confirmed Exploits", "value": int(hosts["cve_kev"].sum()),
      "accent": "#C400FF", "icon": "🎯"},
+    {"label": "GreyNoise: Malicious IP", "value": int((hosts["greynoise_classification"] == "malicious").sum()),
+     "accent": "#FF3B3B", "icon": "☠️"},
 ]
 components.html(build_kpi_header_html(kpi_stats), height=150)
 
@@ -363,7 +365,8 @@ with tab_risk:
         st.markdown(f"**{len(detail)} host(s) — {detail_desc}**")
         cols = ["ip", "port", "version", "country", "org", "hosting_category",
                 "looks_unauthenticated", "cve_flags", "abuse_contact",
-                "censys_open_ports", "censys_os", "censys_services_summary"]
+                "censys_open_ports", "censys_os", "censys_services_summary",
+                "greynoise_classification", "greynoise_noise"]
         if detail["censys_open_ports"].notna().any():
             st.caption(
                 "⚠️ `censys_services_summary` shows ALL open services Censys found on that "
@@ -372,6 +375,13 @@ with tab_risk:
                 "Residential ISP, consistent with carrier-grade NAT sharing one public IP "
                 "across multiple unrelated devices/customers, not one box running everything. "
                 "Trust this data at face value for Cloud/Hosting hosts (one IP = one VM)."
+            )
+        if (detail["greynoise_classification"] == "malicious").any():
+            st.error(
+                "🚨 One or more hosts below have an IP independently classified "
+                "**malicious** by GreyNoise — that's a signal on top of exposure "
+                "alone: the box may be compromised or repurposed, not just "
+                "misconfigured."
             )
         st.dataframe(detail[cols], width='stretch', hide_index=True)
     else:
@@ -408,7 +418,12 @@ with tab_raw:
         "1 Censys credit/host — see censys_lookup.py). ⚠️ `censys_services_summary` "
         "may reflect multiple unrelated devices sharing one IP via CGNAT for "
         "Residential ISP hosts — trust it at face value only for Cloud/Hosting. "
-        "Neither runs automatically as part of collector.py."
+        "`greynoise_*` columns via `uv run enrich_greynoise.py` (Critical tier by "
+        "default — Community API budget is only 50/week, see greynoise_lookup.py): "
+        "`greynoise_noise` means this IP has itself been observed mass-scanning "
+        "the internet; `greynoise_classification` of 'malicious' is a stronger "
+        "signal than exposure alone. None of these three enrichments run "
+        "automatically as part of collector.py."
     )
     col_prod, col_src = st.columns(2)
     with col_prod:

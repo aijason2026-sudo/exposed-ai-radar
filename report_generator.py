@@ -152,12 +152,13 @@ def build_report_pdf(hosts_df, runs_df) -> bytes:
         (str(int((hosts_df["risk_tier"] == "High").sum())), "High Risk"),
         (str(int(hosts_df["country"].nunique())), "Countries"),
         (str(int(hosts_df["cve_kev"].sum())), "KEV-Confirmed"),
+        (str(int((hosts_df["greynoise_classification"] == "malicious").sum())), "GreyNoise: Malicious"),
     ]
     kpi_table_data = [
         [Paragraph(num, ss["KpiNum"]) for num, _ in kpis],
         [Paragraph(label, ss["KpiLabel"]) for _, label in kpis],
     ]
-    kpi_table = Table(kpi_table_data, colWidths=[(A4[0] - 36 * mm) / 5] * 5)
+    kpi_table = Table(kpi_table_data, colWidths=[(A4[0] - 36 * mm) / 6] * 6)
     kpi_table.setStyle(TableStyle([
         ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#D0D5DD")),
         ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#EAECEF")),
@@ -207,14 +208,32 @@ def build_report_pdf(hosts_df, runs_df) -> bytes:
         ss["Bodyc"],
     ))
 
+    checked = hosts_df["greynoise_checked_at"].notna().sum()
+    if checked:
+        malicious = int((hosts_df["greynoise_classification"] == "malicious").sum())
+        noisy = int(hosts_df["greynoise_noise"].fillna(0).astype(bool).sum())
+        flow.append(Paragraph("Threat Intelligence Cross-Reference (GreyNoise)", ss["H2c"]))
+        flow.append(Paragraph(
+            f"{checked} Critical/High-risk host(s) cross-referenced against GreyNoise's "
+            f"internet-scan telemetry (free Community API, budget-limited — not every "
+            f"flagged host has been checked yet). {malicious} independently classified "
+            f"<b>malicious</b> — a stronger signal than exposure alone, suggesting the box "
+            f"may be compromised or repurposed rather than merely misconfigured. "
+            f"{noisy} observed mass-scanning the internet themselves, regardless of "
+            f"classification.",
+            ss["Bodyc"],
+        ))
+
     flow.append(Spacer(1, 16))
     flow.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#D0D5DD")))
     flow.append(Spacer(1, 8))
     flow.append(Paragraph(
-        "<b>Methodology:</b> Data sourced entirely from Shodan's own pre-collected banner data. "
-        "No discovered host is ever contacted directly. Risk tiers are a heuristic triage score "
-        "(auth status, hosting category, known CVEs) — not an objective severity measure. "
-        "This report contains aggregate statistics only; no specific IP addresses are included.",
+        "<b>Methodology:</b> Data sourced entirely from Shodan's own pre-collected banner data, "
+        "cross-referenced with LeakIX, Censys, and GreyNoise (each budget-limited and non-"
+        "exhaustive — see project README). No discovered host is ever contacted directly. Risk "
+        "tiers are a heuristic triage score (auth status, hosting category, known CVEs) — not an "
+        "objective severity measure. This report contains aggregate statistics only; no specific "
+        "IP addresses are included.",
         ss["Bodyc"],
     ))
 

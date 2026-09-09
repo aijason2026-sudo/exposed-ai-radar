@@ -35,6 +35,10 @@ cd "$PROJECT_DIR" || exit 1
     "$UV_BIN" run enrich_censys.py --tiers Critical High --limit 20 --delay 1.0
 
     echo ""
+    echo "--- enrich_greynoise.py (limited — 50/week Community API budget) ---"
+    "$UV_BIN" run enrich_greynoise.py --tiers Critical --limit 15 --delay 1.0
+
+    echo ""
     echo "--- generating dated report snapshot ---"
     "$UV_BIN" run python -c "
 import sqlite3, pandas as pd

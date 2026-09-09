@@ -16,6 +16,15 @@ Put your Shodan API key in `.env` (already gitignored):
 SHODAN_API_KEY=your_key_here
 ```
 
+Optional keys for the enrichment scripts below (each degrades gracefully
+if unset — only that script exits, the rest of the pipeline is unaffected):
+
+```
+CENSYS_API_TOKEN=...      # enrich_censys.py — full open-service inventory
+LEAKIX_API_KEY=...        # leakix_collector.py — second discovery source (ComfyUI only)
+GREYNOISE_API_KEY=...     # enrich_greynoise.py — internet-scan/malicious-IP cross-reference
+```
+
 ## Usage
 
 ```bash
@@ -38,6 +47,14 @@ uv run collector.py --supplement --only "Ollama,Open WebUI" --extra-pages 8
 # free, no API key). Separate from collector.py — slower (one HTTP request
 # per host) and only relevant to the tier where disclosure actually matters.
 uv run enrich_abuse.py
+
+# Cross-reference Critical-tier hosts against GreyNoise's internet-scan
+# telemetry (free Community API — see GREYNOISE_API_KEY below). Flags
+# whether a host's own IP has independently been seen mass-scanning the
+# internet or is classified "malicious" — a stronger signal than exposure
+# alone. Budget-limited to 50 lookups/week, shared with the GreyNoise
+# Visualizer web UI if you browse there too — keep --limit conservative.
+uv run enrich_greynoise.py
 
 # Generate an Executive Snapshot PDF (aggregate-only, no host IPs) — also
 # available as a button in the dashboard itself.
@@ -111,7 +128,11 @@ SQLite (`radar.db`, gitignored):
   `threat_intel.py` for CISA KEV + FIRST.org EPSS enrichment); `risk_score`/
   `risk_tier` (composite heuristic — see `risk_score.py`); and
   `abuse_contact`/`abuse_checked_at` (RDAP-based, High/Critical tier only,
-  populated by `enrich_abuse.py`, not `collector.py` — see `abuse_lookup.py`).
+  populated by `enrich_abuse.py`, not `collector.py` — see `abuse_lookup.py`);
+  and `greynoise_noise`/`greynoise_riot`/`greynoise_classification`/
+  `greynoise_name`/`greynoise_checked_at` (Critical tier by default, free
+  Community API, 50 lookups/week — populated by `enrich_greynoise.py`, not
+  `collector.py` — see `greynoise_lookup.py`).
 - `snapshot_runs` — one row per collector run. `total_reported` (Shodan's
   actual index count for the query) is the trustworthy trend signal.
 
@@ -221,6 +242,30 @@ installing the cron job, not just trusting it'd work unattended.
 
 If a run fails silently, check the most recent file in `logs/` first —
 cron won't surface Python tracebacks anywhere else.
+
+## GreyNoise (threat-intel cross-reference, not a discovery source)
+
+Unlike Shodan/LeakIX/Censys, GreyNoise doesn't find new hosts — it answers
+a different question about hosts we already found: has this IP
+independently been observed mass-scanning the internet, and is it
+classified malicious/benign? A Critical-tier exposed-AI host whose IP is
+*also* GreyNoise-"malicious" is a meaningfully stronger signal than
+exposure alone (compromised/repurposed box, not just misconfigured).
+
+Confirmed empirically (2026-09-09): the Community API is the **only**
+free GreyNoise product — everything else (Investigate, Enterprise) is
+paid. Getting actual API-key-level access (vs. the keyless 10
+lookups/day) requires signing up with a **business/work email** —
+accounts on free providers like Gmail don't get key-level access at all.
+The endpoint returns HTTP 404 (not 200) for a genuine "not observed
+scanning" negative, same real-negative-vs-failure distinction
+`censys_lookup.py`/`abuse_lookup.py` already make — don't treat 404 as an
+error. No quota-remaining header is exposed, and the 50/week budget is
+shared with the GreyNoise Visualizer web UI, so `enrich_greynoise.py`
+defaults to a conservative `--limit 15` and Critical-tier only, and
+treats an HTTP 429 as a signal to stop the whole run immediately (every
+subsequent call would also fail until the weekly reset), not just skip
+one host.
 
 ## LeakIX (second discovery source, ComfyUI only)
 

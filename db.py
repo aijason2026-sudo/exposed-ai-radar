@@ -32,6 +32,11 @@ CREATE TABLE IF NOT EXISTS hosts (
     censys_services_summary TEXT,
     censys_os TEXT,
     censys_checked_at TEXT,
+    greynoise_noise INTEGER,
+    greynoise_riot INTEGER,
+    greynoise_classification TEXT,
+    greynoise_name TEXT,
+    greynoise_checked_at TEXT,
     first_seen TEXT NOT NULL,
     last_seen TEXT NOT NULL,
     PRIMARY KEY (ip, port, product, source)
@@ -67,6 +72,11 @@ def migrate(conn):
         ("censys_services_summary", "ALTER TABLE hosts ADD COLUMN censys_services_summary TEXT"),
         ("censys_os", "ALTER TABLE hosts ADD COLUMN censys_os TEXT"),
         ("censys_checked_at", "ALTER TABLE hosts ADD COLUMN censys_checked_at TEXT"),
+        ("greynoise_noise", "ALTER TABLE hosts ADD COLUMN greynoise_noise INTEGER"),
+        ("greynoise_riot", "ALTER TABLE hosts ADD COLUMN greynoise_riot INTEGER"),
+        ("greynoise_classification", "ALTER TABLE hosts ADD COLUMN greynoise_classification TEXT"),
+        ("greynoise_name", "ALTER TABLE hosts ADD COLUMN greynoise_name TEXT"),
+        ("greynoise_checked_at", "ALTER TABLE hosts ADD COLUMN greynoise_checked_at TEXT"),
     ]:
         if col not in existing:
             conn.execute(ddl)
