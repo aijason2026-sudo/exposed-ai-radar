@@ -4,6 +4,23 @@ Passive Shodan-based tracking of internet-exposed self-hosted AI inference
 tools (Ollama, Open WebUI, ComfyUI, vLLM). Never connects to a discovered
 host directly — only reads Shodan's own pre-collected banner data.
 
+> **⚠️ Responsible disclosure — read before using this data.**
+> This tool is for passive research and reporting exposed hosts to their
+> owners/abuse contacts, not for public shaming or exploitation. Aggregate
+> data (trend charts, country/org breakdowns) is fine to share publicly.
+> **The raw host list (specific IPs) is not** — treat it as private,
+> disclosure-only data. Never connect to a discovered host to "verify" it's
+> really vulnerable; that's outside what a public dataset like Shodan's
+> authorizes. Full policy in [Ethics / scope](#ethics--scope-read-before-extending)
+> below.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Splash screen](docs/screenshots/splash.png) | ![Dashboard overview](docs/screenshots/dashboard-overview.png) |
+| ![Risk tier distribution](docs/screenshots/risk-tiers.png) | ![Live globe view](docs/screenshots/globe-view.png) |
+
 ## Setup
 
 ```bash
