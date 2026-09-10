@@ -42,6 +42,11 @@ LEAKIX_API_KEY=...        # leakix_collector.py — second discovery source (Com
 GREYNOISE_API_KEY=...     # enrich_greynoise.py — internet-scan/malicious-IP cross-reference
 ```
 
+`radar.db` is gitignored and not included in the repo, so a fresh clone starts
+with no data — the dashboard and reports will be empty until you run
+`collector.py` at least once (see Usage below). The screenshots above are
+from a populated snapshot, not what you'll see on first run.
+
 ## Usage
 
 ```bash
